@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SettleUp film graphics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Atkinson+Hyperlegible:wght@400;700&family=Roboto+Mono:wght@400;500;700&display=block" rel="stylesheet">
+<!--
+  The film's drawn scenes. graphics.html?scene=<story|turn|proof|recap|close>&dur=<s>&cues=<{lineId: s}>&words=<{lineId: [[word, s]]}>
+  &facts=<facts.json>&shots=<file:// dir of product screenshots>&boxes=<{name: [x,y,w,h]}>  (&t=<s> freezes a frame)
+  Every frame is a pure function of the time since window.__start(), so a recording is reproducible.
+-->
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #fff; --ink: #1f2430; --muted: #6b7280; --line: #e6e8ef;
+    --blue: #4285f4; --red: #ea4335; --yellow: #fbbc05; --green: #34a853;
+    --night: #1b1714; --warm: #f3d9b1; --display: "Google Sans", "Atkinson Hyperlegible", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--display); }
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+  .abs { position: absolute; }
+  .chapter { position: absolute; left: 96px; top: 58px; font: 500 24px "Roboto Mono", monospace; letter-spacing: .08em; text-transform: uppercase;
+             display: flex; align-items: center; gap: 12px; }
+  .chapter i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dots { display: inline-flex; gap: .16em; vertical-align: middle; }
+  .dots i { width: .26em; height: .26em; border-radius: 50%; display: block; }
+
+  /* story + close: a warm, slow night */
+  .night { background: radial-gradient(1200px 800px at 70% 30%, #4a3424 0%, #2a211b 45%, var(--night) 100%); color: var(--warm); }
+  .bokeh { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(255,196,120,.55), rgba(255,196,120,0) 70%); filter: blur(2px); }
+  .where { left: 96px; top: 118px; font: 500 34px "Roboto Mono", monospace; color: #ecd2ab; letter-spacing: .04em; }
+  .phone { left: 1040px; top: 56px; width: 680px; height: 836px; border-radius: 56px; background: #0f0d0c; padding: 18px;
+           box-shadow: 0 40px 120px rgba(0,0,0,.55), inset 0 0 0 2px #3b322b; }
+  .screen { width: 100%; height: 100%; border-radius: 40px; background: #f1ece6; overflow: hidden; display: flex; flex-direction: column; }
+  .chathead { background: #fff; padding: 26px 28px 18px; border-bottom: 1px solid #e3dcd3; color: #2a2420; }
+  .chathead b { font-size: 36px; display: block; }
+  .chathead span { font-size: 26px; color: #8a7f74; }
+  .thread { flex: 1; padding: 18px 22px; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; overflow: hidden; }
+  .bub { max-width: 86%; padding: 12px 20px; border-radius: 22px; font-size: 32px; line-height: 1.3; color: #2a2420; background: #fff;
+         box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+  .bub small { display: block; font-size: 22px; font-weight: 700; margin-bottom: 2px; }
+  .bub.me { align-self: flex-end; background: #d7ecff; }
+  .bub.typing { color: #8a7f74; font-style: italic; }
+  .bub.card { background: #fff; border: 2px solid var(--blue); max-width: 92%; }
+  .bub.card .pay { font: 500 30px "Roboto Mono", monospace; display: flex; justify-content: space-between; gap: 20px; padding: 3px 0; }
+  .note { left: 150px; top: 300px; width: 640px; padding: 34px 40px; border-radius: 18px; background: #fbf3df; color: #3a2e22;
+          font: 400 36px "Roboto Mono", monospace; line-height: 1.6; transform: rotate(-3deg); box-shadow: 0 30px 80px rgba(0,0,0,.45); }
+  .note .row { position: relative; white-space: nowrap; }
+  .note .strike { position: absolute; left: -6px; right: -6px; top: 52%; height: 4px; background: var(--red); transform-origin: left; border-radius: 2px; }
+  .form { width: 520px; padding: 30px 34px; border-radius: 20px; background: #fff; color: #2a2420; box-shadow: 0 30px 80px rgba(0,0,0,.4); }
+  .form b { font-size: 32px; display: block; margin-bottom: 18px; }
+  .form .f { font-size: 23px; color: #8a7f74; border-bottom: 2px solid #e3dcd3; padding: 10px 0; }
+  .dim { position: absolute; inset: 0; background: rgba(10,8,7,.0); pointer-events: none; }
+
+  /* the turn: kinetic type */
+  .k { position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; letter-spacing: -.01em; }
+  .k .w { display: inline-block; margin: 0 .14em; }
+  .k .hot { color: var(--blue); }
+  .mark { font-size: 150px; font-weight: 700; display: inline-flex; align-items: center; gap: 36px; }
+
+  /* proof */
+  .stat { width: 520px; padding: 34px 40px; background: #fff; border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 20px 60px rgba(31,36,48,.08); }
+  .stat .v { font-size: 112px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 34px; margin-top: 12px; }
+  .stat .s { font: 400 20px "Roboto Mono", monospace; color: var(--muted); margin-top: 14px; }
+  .who { position: absolute; width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+         font-size: 40px; font-weight: 700; box-shadow: 0 16px 40px rgba(31,36,48,.18); }
+  .who span { position: absolute; top: 160px; color: var(--ink); font-size: 30px; font-weight: 500; white-space: nowrap; }
+  .amt { position: absolute; font: 700 34px "Roboto Mono", monospace; background: #fff; padding: 6px 14px; border-radius: 12px;
+         border: 2px solid var(--blue); color: var(--ink); white-space: nowrap; }
+
+  /* recap */
+  .rl { position: absolute; left: 110px; font-size: 52px; font-weight: 700; line-height: 1.08; width: 840px; }
+  .shot { position: absolute; left: 1000px; top: 170px; width: 820px; height: 600px; border-radius: 26px; overflow: hidden;
+          background-repeat: no-repeat; box-shadow: 0 30px 90px rgba(31,36,48,.22); border: 1px solid var(--line); background-color: #fff; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+
+  /* end card */
+  .end { position: absolute; inset: 0; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+  .end .mark { font-size: 132px; }
+  .end .tag { font-size: 44px; color: var(--ink); }
+  .end .meta { font: 400 28px "Roboto Mono", monospace; color: var(--muted); text-align: center; line-height: 1.7; }
+  .end .cta { font-size: 34px; font-weight: 700; color: #fff; background: var(--blue); padding: 18px 34px; border-radius: 16px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script>
+const Q = new URLSearchParams(location.search);
+const SCENE = Q.get('scene') || 'story';
+const DUR = +(Q.get('dur') || 20);
+const CUES = JSON.parse(Q.get('cues') || '{}');
+const WORDS = JSON.parse(Q.get('words') || '{}');
+const F = JSON.parse(Q.get('facts') || '{}');
+const SHOTS = Q.get('shots') || '';
+const BOXES = JSON.parse(Q.get('boxes') || '{}');
+const FROZEN = Q.get('t');
+const COLORS = ['#4285f4', '#ea4335', '#fbbc05', '#34a853'];
+const stage = document.getElementById('stage');
+
+// One ease for everything: cubic-bezier(0.16, 1, 0.3, 1), solved for x by Newton's method.
+function bez(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = (t) => ((ax * t + bx) * t + cx) * t, Y = (t) => ((ay * t + by) * t + cy) * t, D = (t) => (3 * ax * t + 2 * bx) * t + cx;
+  return (x) => { let t = x; for (let i = 0; i < 8; i++) { const d = D(t); if (Math.abs(d) < 1e-6) break; t -= (X(t) - x) / d; } return Y(Math.min(1, Math.max(0, t))); };
+}
+const EASE = bez(0.16, 1, 0.3, 1);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const prog = (t, at, dur) => EASE(clamp((t - at) / dur));
+const cue = (id, fb = 0) => (id in CUES ? CUES[id] : fb);
+/** Scene time of the first word in line *id* matching *re*, else the line's start + *after*. */
+function word(id, re, after = 0) {
+  for (const [w, t] of WORDS[id] || []) if (re.test(w.toLowerCase().replace(/[^a-z0-9]/g, ''))) return t;
+  return cue(id) + after;
+}
+
+function el(html, parent = stage) {
+  const d = document.createElement('div');
+  d.innerHTML = html.trim();
+  const n = d.firstElementChild;
+  parent.append(n);
+  return n;
+}
+const anims = [];
+/** Enter at *at* (12 px rise + fade), optionally leave at *out*. Opacity and transform are recomputed every frame. */
+function show(node, at, { dur = 0.6, rise = 12, out = null, outDur = 0.3, to = 1, scale = null } = {}) {
+  anims.push((t) => {
+    let o = prog(t, at, dur) * to, y = (1 - prog(t, at, dur)) * rise;
+    if (out !== null) o *= 1 - EASE(clamp((t - out) / outDur));
+    node.style.opacity = o;
+    node.style.transform = (node.dataset.base || '') + ` translateY(${y}px)` + (scale ? ` scale(${scale(t)})` : '');
+  });
+}
+const every = (fn) => anims.push(fn);
+const chapter = (label, dark) => el(`<div class="chapter" style="color:${dark ? '#d9b98f' : 'var(--muted)'}"><span class="dots">${COLORS.map((c) => `<i style="background:${c}"></i>`).join('')}</span>${label}</div>`);
+const wordmark = (size) => `<span class="mark" style="font-size:${size}px"><span class="dots">${COLORS.map((c) => `<i style="background:${c}"></i>`).join('')}</span>SettleUp</span>`;
+
+// ---------- the night, shared by the story and the close ----------
+function night(resolved) {
+  stage.className = 'stage night';
+  const world = el('<div class="abs" style="inset:0;transform-origin:60% 40%"></div>');
+  // string lights: fixed positions, a slow drift and breathing, all from t
+  const bulbs = Array.from({ length: 22 }, (_, i) => ({ x: (i * 397) % 1920, y: 40 + ((i * 173) % 360), r: 40 + ((i * 53) % 90), p: i * 0.7 }));
+  const nodes = bulbs.map((b) => el(`<div class="bokeh" style="width:${b.r * 2}px;height:${b.r * 2}px"></div>`, world));
+  every((t) => {
+    world.style.transform = `scale(${1 + 0.05 * clamp(t / DUR)})`;
+    bulbs.forEach((b, i) => {
+      nodes[i].style.left = `${b.x + 18 * Math.sin(t * 0.15 + b.p) - b.r}px`;
+      nodes[i].style.top = `${b.y + 10 * Math.cos(t * 0.12 + b.p) - b.r}px`;
+      nodes[i].style.opacity = 0.35 + 0.25 * Math.sin(t * 0.8 + b.p);
+    });
+  });
+  const phone = el(`<div class="abs phone"><div class="screen"><div class="chathead"><b>Goa trip</b><span>Arjun, Kabir, Riya, you</span></div><div class="thread"></div></div></div>`, world);
+  return { world, thread: phone.querySelector('.thread'), phone };
+}
+function bubble(thread, who, text, at, { me = false, cls = '', until = Infinity } = {}) {
+  const b = el(`<div class="bub ${me ? 'me' : ''} ${cls}">${who ? `<small style="color:${{ Arjun: '#c5221f', Kabir: '#1a73e8', Riya: '#188038' }[who] || '#5f6368'}">${who}</small>` : ''}${text}</div>`, thread);
+  b.style.display = 'none';
+  every((t) => { b.style.display = t >= at && t < until ? '' : 'none'; });
+  show(b, at, { dur: 0.3, rise: 16 });
+  return b;
+}
+
+function story() {
+  const { world, thread, phone } = night(false);
+  chapter('The problem', true);
+  const owed = Math.round(F.pays.filter((p) => p.from === F.pays[0].from).reduce((s, p) => s + +p.amount, 0));
+  const first = Math.round(+F.pays[0].amount);
+  const s1 = cue('s1', 1), s2 = cue('s2', 6), s3 = cue('s3', 13), s4 = cue('s4', 17);
+  show(el('<div class="abs where">Goa · last night of the trip · 11:40 pm</div>', world), s1 + 0.2, { dur: 0.6 });
+  bubble(thread, 'Arjun', 'dinner was 1200, I paid', s1 + 0.9);
+  bubble(thread, 'Riya', 'cab was 600 btw. me, Kabir and you', s1 + 2.1);
+  bubble(thread, '', 'snacks 900, I got those', s1 + 3.3, { me: true });
+  bubble(thread, 'Kabir', 'wait so what do I owe?', word('s2', /cab/, 1.5) - 0.2);
+  bubble(thread, 'Riya', `${first}? or ${owed}?`, word('s2', /^or$/, 3.2) - 0.4);
+  // the notes-app maths, crossed out line by line
+  const note = el(`<div class="abs note"><div class="row">1200 / 4 = 300</div><div class="row">600 / 3 = 200</div><div class="row">900 / 4 = 225</div><div class="row">Kabir: ${first}? ${owed}??</div></div>`, world);
+  note.dataset.base = 'rotate(-3deg)';
+  show(note, word('s2', /dinner/, 0.4), { dur: 0.6, out: s3 - 0.2, outDur: 0.4 });
+  note.querySelectorAll('.row').forEach((r, i) => {
+    const s = el('<div class="strike"></div>', r);
+    const at = word('s2', /^is$/, 2.6) + i * 0.35;
+    every((t) => { s.style.transform = `scaleX(${prog(t, at, 0.3)})`; });
+  });
+  // every bill, a form: three forms fan out
+  [0, 1, 2].forEach((i) => {
+    const f = el(`<div class="abs form" style="left:${170 + i * 60}px;top:${250 + i * 70}px"><b>Add an expense</b><div class="f">Amount</div><div class="f">Paid by</div><div class="f">Split between</div><div class="f">Split how?</div></div>`, world);
+    f.dataset.base = `rotate(${-6 + i * 4}deg)`;
+    show(f, word('s3', /form/, 1.0) + i * 0.25, { dur: 0.6, out: s4 + 0.3, outDur: 0.5 });
+  });
+  // the worst part: the room dims, and the one who paid most has to ask
+  const dim = el('<div class="dim"></div>', world);
+  every((t) => { dim.style.background = `rgba(10,8,7,${0.45 * prog(t, s4, 1.2)})`; phone.style.zIndex = 2; });
+  const asks = word('s4', /ask/, 3.4);
+  bubble(thread, 'Arjun', 'typing…', word('s4', /paid/, 1.6), { cls: 'typing', until: asks });
+  bubble(thread, 'Arjun', 'hey guys… so, about the money', asks);
+}
+
+function turn() {
+  chapter('SettleUp', false);
+  const t1 = cue('t1', 0.3);
+  // the on-screen words are exactly the spoken words, phrase by phrase, each word landing as it's said
+  const phrases = [
+    { words: ['This', 'is'], y: 360, size: 92, until: /say/ },
+    { words: ['Say', 'who', 'paid,', 'in', 'plain', 'English.'], hot: ['plain', 'English.'], y: 330, size: 104, until: /get/ },
+    { words: ['Get', 'the', 'fewest', 'payments', 'that', 'settle', 'everyone.'], hot: ['fewest', 'payments'], y: 250, size: 96, until: null },
+  ];
+  const spoken = WORDS.t1 || [];
+  let k = 0;
+  const timeOf = (w) => {
+    const target = w.toLowerCase().replace(/[^a-z]/g, '');
+    for (let i = k; i < spoken.length; i++) if (spoken[i][0].toLowerCase().replace(/[^a-z]/g, '').startsWith(target.slice(0, 4))) { k = i + 1; return spoken[i][1]; }
+    return null;
+  };
+  let fallback = t1;
+  const starts = [];
+  phrases.forEach((p) => {
+    const line = el(`<div class="k" style="top:${p.y}px;font-size:${p.size}px"></div>`);
+    p.node = line;
+    p.ws = p.words.map((w) => {
+      const at = timeOf(w);
+      fallback = at ?? fallback + 0.3;
+      const n = el(`<span class="w ${p.hot && p.hot.includes(w) ? 'hot' : ''}">${w}</span>`, line);
+      show(n, fallback, { dur: 0.3, rise: 12 });
+      return fallback;
+    });
+    starts.push(p.ws[0]);
+  });
+  // "SettleUp": the wordmark lands under "This is", then each phrase replaces the last
+  const brandAt = timeOf('settle') ?? starts[0] + 0.5;
+  const brand = el(`<div class="k" style="top:470px">${wordmark(170)}</div>`);
+  show(brand, brandAt, { dur: 0.6, rise: 16, out: starts[1] - 0.1, outDur: 0.3, scale: (t) => 0.92 + 0.08 * prog(t, brandAt, 0.6) });
+  phrases.forEach((p, i) => {
+    const out = i + 1 < phrases.length ? starts[i + 1] - 0.1 : null;
+    every((t) => { p.node.style.opacity = out === null ? 1 : 1 - EASE(clamp((t - out) / 0.3)); });
+  });
+  // the payoff phrase steps up and the wordmark returns under it
+  const endAt = Math.min(DUR - 1.4, (spoken.at(-1)?.[1] ?? DUR - 2) + 0.5);
+  const small = el(`<div class="k" style="top:600px">${wordmark(120)}</div>`);
+  show(small, endAt, { dur: 0.6, rise: 16 });
+}
+
+function proof() {
+  chapter('Proof, from the repo and the live run', false);
+  const p1 = cue('p1', 0.4), p2 = cue('p2', 5);
+  const cards = [
+    { v: `${F.tests_passed}/${F.tests_passed + F.tests_failed}`, l: 'tests pass', s: 'pytest · tests/test_settle.py', at: p1 + 0.2, n: F.tests_passed },
+    { v: `${F.payments}`, l: `payments settle ${F.people} people`, s: 'live run · checked by ledger.py', at: word('p2', /payments/, 1.2), n: F.payments },
+    { v: `${F.tool_calls}`, l: `tool calls · ${F.errors} errors`, s: 'usage log of the recorded run', at: word('p2', /never/, 2.6), n: F.tool_calls },
+  ];
+  cards.forEach((c, i) => {
+    const n = el(`<div class="abs stat" style="left:110px;top:${150 + i * 236}px;width:640px;padding:26px 36px"><div class="v" style="font-size:88px;color:${COLORS[[0, 3, 0][i]]}"></div><div class="l">${c.l}</div><div class="s">${c.s}</div></div>`);
+    const v = n.querySelector('.v');
+    show(n, c.at, { dur: 0.6 });
+    // count up over 0.8 s to the value from facts.json
+    every((t) => { const k = prog(t, c.at, 0.8); v.textContent = c.v.includes('/') ? `${Math.round(c.n * k)}/${c.v.split('/')[1]}` : `${Math.round(c.n * k)}`; });
+  });
+  // who pays whom: four people, three arrows, drawn on as the line says it
+  // payers on top, the two who owe below: the three arrows never cross a name or each other
+  const people = { Arjun: [1040, 210], Kabir: [1040, 640], Me: [1640, 210], Riya: [1640, 640] };
+  const svg = el('<svg class="abs" width="1920" height="1080" style="left:0;top:0;overflow:visible"></svg>');
+  Object.entries(people).forEach(([name, [x, y]], i) => {
+    const w = el(`<div class="who" style="left:${x - 75}px;top:${y - 75}px;background:${COLORS[i]}">${name[0]}<span>${name === 'Me' ? 'You' : name}</span></div>`);
+    show(w, p2 + 0.1 + i * 0.12, { dur: 0.6 });
+  });
+  F.pays.forEach((p, i) => {
+    const [x1, y1] = people[p.from], [x2, y2] = people[p.to];
+    const a = Math.atan2(y2 - y1, x2 - x1), r = 88;
+    const sx = x1 + r * Math.cos(a), sy = y1 + r * Math.sin(a), ex = x2 - (r + 8) * Math.cos(a), ey = y2 - (r + 8) * Math.sin(a);
+    const len = Math.hypot(ex - sx, ey - sy);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${sx},${sy} L${ex},${ey}`);
+    path.setAttribute('stroke', '#4285f4'); path.setAttribute('stroke-width', '6'); path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round'); path.setAttribute('stroke-dasharray', len);
+    svg.append(path);
+    const head = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    head.setAttribute('d', `M${ex},${ey} l${-22 * Math.cos(a - 0.45)},${-22 * Math.sin(a - 0.45)} M${ex},${ey} l${-22 * Math.cos(a + 0.45)},${-22 * Math.sin(a + 0.45)}`);
+    head.setAttribute('stroke', '#4285f4'); head.setAttribute('stroke-width', '6'); head.setAttribute('stroke-linecap', 'round');
+    svg.append(head);
+    const at = word('p2', /payments/, 1.2) + 0.2 + i * 0.35;
+    const lbl = el(`<div class="amt" style="left:${(sx + ex) / 2 + (Math.abs(ex - sx) < 5 ? 22 : -40)}px;top:${(sy + ey) / 2 - 28}px">${Math.round(+p.amount)}</div>`);
+    show(lbl, at + 0.25, { dur: 0.3 });
+    every((t) => { path.style.strokeDashoffset = len * (1 - prog(t, at, 0.3)); head.style.opacity = prog(t, at + 0.25, 0.15); });
+  });
+}
+
+function recap() {
+  stage.style.background = '#fff';
+  chapter('What nobody else does, in one line each', false);
+  const lines = ['r1', 'r2', 'r3', 'r4', 'r5'];
+  const texts = ['One sentence in. Every expense logged.', 'Claude picks the tools. Code does the maths.', 'Fewest payments, exact to the cent.', 'Every request measured, live.', `${F.payments} payments. Everyone settled.`];
+  const B = BOXES;
+  // a real screenshot from earlier in the film behind each line: [file, crop box in 1920x1080 pixels]
+  const pad = (b, p) => [b[0] - p, b[1] - p, b[2] + 2 * p, b[3] + 2 * p];
+  const shots = [
+    ['shot-chat.png', pad(B.reply || [50, 230, 750, 250], 24)],
+    ['shot-dash.png', [1484, 369, 397, 182]],  // the dashboard's tool-calls panel: add_expense 3, settle_up 1
+    ['shot-settle.png', pad(B.settle || [50, 420, 350, 170], 30)],
+    ['shot-dash.png', pad(B.kpis || [970, 170, 900, 190], 24)],
+    null,
+  ];
+  const flash = el('<div class="flash"></div>');
+  lines.forEach((id, i) => {
+    const at = cue(id, 1.5 + i * 2.2), next = i + 1 < lines.length ? cue(lines[i + 1], at + 2.2) : DUR + 1;
+    const n = el(`<div class="rl" style="top:${150 + i * 136}px">${texts[i]}</div>`);
+    show(n, at, { dur: 0.3 });
+    every((t) => { n.style.color = t < next ? 'var(--blue)' : 'rgba(31,36,48,.4)'; });
+    every((t) => { flash.style.opacity = Math.max(+flash.style.opacity || 0, t >= at && t < at + 0.07 ? 0.85 : 0); });
+    if (shots[i]) {
+      const [file, [x, y, w, h]] = shots[i];
+      const s = el(`<div class="shot"></div>`);
+      const k = Math.min(820 / w, 600 / h);
+      s.style.width = `${w * k}px`; s.style.height = `${h * k}px`;
+      s.style.top = `${170 + (600 - h * k) / 2}px`;
+      s.style.backgroundImage = `url('${SHOTS}/${file}')`;
+      s.style.backgroundSize = `${1920 * k}px ${1080 * k}px`;
+      s.style.backgroundPosition = `${-x * k}px ${-y * k}px`;
+      s.style.transformOrigin = 'center';
+      every((t) => {
+        s.style.display = t >= at && t < next ? '' : 'none';
+        s.style.transform = `scale(${1 + 0.08 * prog(t, at, 1.2)})`;
+      });
+    } else {
+      // the last line is the number: a bar per payment, drawn up
+      const wrap = el(`<div class="abs" style="left:1040px;top:200px;width:760px;height:560px;display:flex;align-items:flex-end;gap:40px"></div>`);
+      const max = Math.max(...F.pays.map((p) => +p.amount));
+      F.pays.forEach((p, j) => {
+        const bar = el(`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:14px"><div style="font:700 40px 'Roboto Mono',monospace">${Math.round(+p.amount)}</div><div class="b" style="width:100%;border-radius:14px 14px 4px 4px;background:${COLORS[j]}"></div><div style="font-size:28px;white-space:nowrap">${p.from} → ${p.to === 'Me' ? 'You' : p.to}</div></div>`, wrap);
+        const b = bar.querySelector('.b');
+        every((t) => { b.style.height = `${360 * (+p.amount / max) * prog(t, at + j * 0.12, 0.6) + 6}px`; });
+      });
+      every((t) => { wrap.style.display = t >= at ? 'flex' : 'none'; });
+    }
+  });
+  every((t) => { if (!lines.some((id) => t >= cue(id) && t < cue(id) + 0.07)) flash.style.opacity = 0; });
+}
+
+function close() {
+  const c1 = cue('c1', 0.6), c2 = cue('c2', 5);
+  const { thread } = night(true);
+  chapter('The same night', true);
+  show(el('<div class="abs where">Goa · last night of the trip · 11:52 pm</div>'), 0.2, { dur: 0.6 });
+  bubble(thread, '', 'Arjun paid 1200 for dinner for everyone, Riya paid 600 for the cab split with Kabir and me, and I paid 900 for hotel snacks for all', 0.3, { me: true });
+  const card = bubble(thread, 'SettleUp', F.pays.map((p) => `<div class="pay"><span>${p.from} → ${p.to === 'Me' ? 'You' : p.to}</span><b>${Math.round(+p.amount)}</b></div>`).join(''), word('c1', /sentence/, 1.2), { cls: 'card' });
+  const kabir = Math.round(F.pays.filter((p) => p.from === 'Kabir').reduce((s, p) => s + +p.amount, 0));
+  bubble(thread, 'Kabir', `sent ${kabir}. thanks, all`, word('c1', /payments/, 2.6));
+  bubble(thread, 'Arjun', 'that was easy', word('c1', /ask/, 4.2));
+  // the end card, from the second line on, held with the music
+  const end = el(`<div class="end"><div>${wordmark(132)}</div><div class="tag">Say who paid. Get the fewest payments.</div>
+    <div class="meta">Built with Google Agent Development Kit + ${F.model === 'claude-opus-5-5' ? 'Claude Opus 5.5' : F.model}<br>Working prototype · open source · <span style="color:var(--ink)">github.com/Prashant-thakur77/BUILDWITHAI</span></div>
+    <div class="cta">Try it on your next trip</div></div>`);
+  show(end, c2 - 0.2, { dur: 0.6, rise: 0 });
+}
+
+const SCENES = { story, turn, proof, recap, close };
+(SCENES[SCENE] || story)();
+
+let t0 = null;
+window.__start = () => { t0 = performance.now(); };
+const now = () => (FROZEN !== null ? +FROZEN : t0 === null ? 0 : (performance.now() - t0) / 1000);
+function frame() { const t = now(); anims.forEach((a) => a(t)); requestAnimationFrame(frame); }
+document.fonts.ready.then(() => { frame(); requestAnimationFrame(() => { window.__ready = true; }); });
+</script>
+</body>
+</html>

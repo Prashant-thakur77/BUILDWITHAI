@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, initial-scale=1">
+<title>Under the hood</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Roboto+Mono:wght@400;500;700&display=block" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #ffffff; --line: #e6e8ef; --ink: #1f2430; --muted: #6b7280;
+    --blue: #4285f4; --red: #ea4335; --yellow: #fbbc05; --green: #34a853;
+    --sans: "Atkinson Hyperlegible", "Inter", system-ui, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden;
+    transform-origin: 0 0;
+    background:
+      radial-gradient(ellipse 70% 65% at 46% 46%, #fbfcfe 0%, #f6f7fb 62%, #eceef5 100%);
+  }
+  #gl { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #ov { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; overflow: visible; }
+  .abs { position: absolute; left: 0; top: 0; will-change: transform, opacity; opacity: 0; }
+
+  #chapter { display: flex; align-items: center; gap: 16px; opacity: 1; }
+  #chapter .dots { display: flex; gap: 6px; }
+  #chapter .dots i { width: 13px; height: 13px; border-radius: 50%; display: block; }
+  #chapter span { font: 700 32px/1 var(--sans); color: var(--ink); letter-spacing: .005em; }
+
+  .label { display: flex; align-items: flex-start; gap: 18px; }
+  .badge { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
+           font: 700 26px/1 var(--sans); color: #fff; margin-top: -3px; }
+  .badge.y { color: var(--ink); }
+  .ltxt { max-width: 560px; }
+  .ttl { font: 700 38px/1.08 var(--sans); color: var(--ink); white-space: nowrap; }
+  .sub { font: 400 24px/1.25 var(--sans); color: var(--muted); margin-top: 6px; }
+  .sub code { font: 500 23px/1.25 var(--mono); color: #1a56c4; }
+
+  .sat { display: flex; align-items: center; gap: 14px; background: #fff; border: 1.5px solid var(--line);
+         border-radius: 16px; padding: 14px 22px 14px 18px;
+         box-shadow: 0 10px 24px rgba(31, 36, 48, .07), 0 2px 4px rgba(31, 36, 48, .04); }
+  .sat i { width: 16px; height: 16px; border-radius: 5px; background: var(--blue); flex: none; }
+  .sat span { font: 700 30px/1.1 var(--sans); color: var(--ink); white-space: nowrap; }
+
+  #tag { display: flex; align-items: center; gap: 12px; background: #fff; border: 2px solid var(--red);
+         border-radius: 999px; padding: 9px 22px 9px 16px; box-shadow: 0 8px 20px rgba(234, 67, 53, .14); }
+  #tag i { width: 16px; height: 16px; border-radius: 50%; background: var(--red); flex: none; }
+  #tag span { font: 500 26px/1 var(--mono); color: #c5221f; white-space: nowrap; }
+
+  #refuse { background: #fff; border: 1.5px solid #f6c6c1; border-left: 7px solid var(--red); border-radius: 16px;
+            padding: 16px 26px 18px 22px; box-shadow: 0 12px 28px rgba(31, 36, 48, .08); }
+  #refuse .rt { font: 700 36px/1.1 var(--sans); color: #d93025; white-space: nowrap; }
+  #refuse .rs { font: 400 24px/1.3 var(--sans); color: var(--ink); margin-top: 8px; }
+  #refuse .rs code { font: 500 23px/1.3 var(--mono); color: #c5221f; }
+  #refuse .rs b { color: var(--muted); font-weight: 400; }
+
+  #chip { display: flex; align-items: center; gap: 16px; background: var(--green); color: #fff;
+          border-radius: 999px; padding: 18px 34px 18px 22px;
+          box-shadow: 0 14px 30px rgba(52, 168, 83, .28); }
+  #chip .ck { width: 44px; height: 44px; border-radius: 50%; background: #fff; display: grid; place-items: center; flex: none; }
+  #chip span { font: 700 40px/1 var(--sans); white-space: nowrap; }
+  #chipRing { border: 3px solid var(--green); border-radius: 999px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <svg id="ov" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  <div id="chapter" class="abs">
+    <div class="dots"><i style="background:#4285f4"></i><i style="background:#ea4335"></i><i style="background:#fbbc05"></i><i style="background:#34a853"></i></div>
+    <span>Under the hood</span>
+  </div>
+  <div id="labels"></div>
+  <div id="sats"></div>
+  <div id="tag" class="abs"><i></i><span>amount: −500</span></div>
+  <div id="refuse" class="abs">
+    <div class="rt">Refused by the tool</div>
+    <div class="rs"><code>amount must be &gt; 0</code><br><b>nothing recorded</b></div>
+  </div>
+  <div id="chipRing" class="abs"></div>
+  <div id="chip" class="abs">
+    <div class="ck"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#34a853" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <span>3 payments settle everything</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  // ---------------------------------------------------------------- params
+  const Q = new URLSearchParams(location.search);
+  const DUR = Number(Q.get("dur")) > 0 ? Number(Q.get("dur")) : 26;
+  const DEF = { l1: 0.5, l2: 3.2, l3: 6.0, l4: 9.1, l5: 12.4, l6: 15.0, sat: 17.0, danger: 19.0, result: 22.5 };
+  let cin = {};
+  try { cin = JSON.parse(Q.get("cues") || "{}") || {}; } catch (e) { cin = {}; }
+  const C = {};
+  for (const k in DEF) C[k] = Number.isFinite(Number(cin[k])) && cin[k] !== null && cin[k] !== "" ? Number(cin[k]) : DEF[k] * DUR / 26;
+  const FROZEN = Q.has("t") ? Math.max(0, Number(Q.get("t")) || 0) : null;
+  window.__cues = C; window.__dur = DUR;
+
+  // ---------------------------------------------------------------- easing: cubic-bezier(0.16, 1, 0.3, 1)
+  function bezier(x1, y1, x2, y2) {
+    const bx = (t) => 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t;
+    const by = (t) => 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
+    return (x) => {
+      if (x <= 0) return 0; if (x >= 1) return 1;
+      let lo = 0, hi = 1, t = x;
+      for (let i = 0; i < 28; i++) { t = (lo + hi) / 2; if (bx(t) < x) lo = t; else hi = t; }
+      return by((lo + hi) / 2);
+    };
+  }
+  const ease = bezier(0.16, 1, 0.3, 1);
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const prog = (t, t0, d) => ease(clamp((t - t0) / d, 0, 1));
+  const lin = (t, t0, d) => clamp((t - t0) / d, 0, 1);
+
+  // ---------------------------------------------------------------- content
+  const LAYERS = [
+    { key: "l1", title: "You type it", sub: "the chat page; one plain-English sentence" },
+    { key: "l2", title: "FastAPI server", sub: "<code>/api/chat</code>; measures every request" },
+    { key: "l3", title: "Google ADK Runner", sub: "runs the agent; keeps the ledger in session state" },
+    { key: "l4", title: "Claude Opus 5.5", sub: "reads the sentence; picks the tools" },
+    { key: "l5", title: "Tools", sub: "<code>add_expense ×3 · settle_up</code>" },
+    { key: "l6", title: "Ledger, in exact cents", sub: "code does the maths; fewest payments" },
+  ];
+  const BADGE = ["#4285f4", "#ea4335", "#fbbc05", "#34a853", "#4285f4", "#ea4335"];
+  const SATS = [ // top → bottom; layer index each one connects to
+    { text: "Anthropic API", layer: 3, color: "#4285f4" },
+    { text: "Session state", layer: 2, color: "#fbbc05" },
+    { text: "Usage log · SQLite", layer: 1, color: "#34a853" },
+  ];
+  const CUE_L = LAYERS.map((l) => C[l.key]);
+
+  // ---------------------------------------------------------------- geometry constants (world units)
+  const W = 6.4, D = 3.7, TH = 0.34, RAD = 0.42, GAP = 1.42, Y0 = 0.55;
+  const HOLE_Z = D / 2 - 0.62, HOLE_R = 0.3;
+  const baseY = (k) => Y0 + k * GAP;            // bottom of slab k
+  const ACC = new THREE.Color("#4285f4"), RED = new THREE.Color("#ea4335"), GRN = new THREE.Color("#34a853");
+  const EDGE = new THREE.Color("#d9dde6"), RING = new THREE.Color("#d3d8e2");
+
+  // ---------------------------------------------------------------- three setup
+  const canvas = document.getElementById("gl");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setSize(1920, 1080, false);
+  renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(28, 1920 / 1080, 1, 200);
+  const TARGET = new THREE.Vector3(0, 4.15, 0);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xe4e8f1, 0.86));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.3);
+  sun.position.set(-7, 22, 9);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.radius = 7;
+  sun.shadow.bias = -0.0008;
+  Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 60 });
+  scene.add(sun); scene.add(sun.target);
+
+  // floor: shadow catcher + soft contact shadow
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.075 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+  function canvasTex(w, h, draw) {
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    draw(c.getContext("2d"), w, h);
+    const tx = new THREE.CanvasTexture(c); tx.anisotropy = 4; return tx;
+  }
+  function rr(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+    g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h);
+    g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+  }
+  const contactTex = canvasTex(256, 256, (g, w, h) => {
+    const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gr.addColorStop(0, "rgba(31,36,48,0.20)"); gr.addColorStop(0.55, "rgba(31,36,48,0.08)"); gr.addColorStop(1, "rgba(31,36,48,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  const contact = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.7, D * 2.0),
+    new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false }));
+  contact.rotation.x = -Math.PI / 2; contact.position.y = 0.01; scene.add(contact);
+
+  const haloTex = canvasTex(128, 128, (g, w, h) => {
+    const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.3, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  const GM = 0.75, GS = 150; // glow margin (world) and px per unit
+  const glowTex = canvasTex(Math.round((W + 2 * GM) * GS), Math.round((D + 2 * GM) * GS), (g) => {
+    g.shadowColor = "rgba(255,255,255,1)"; g.shadowBlur = 0.42 * GS;
+    g.strokeStyle = "rgba(255,255,255,1)"; g.lineWidth = 0.07 * GS;
+    rr(g, GM * GS, GM * GS, W * GS, D * GS, RAD * GS); g.stroke(); g.stroke(); g.stroke();
+  });
+
+  // slab shape (rounded rect with a data port near the front edge)
+  function slabShape() {
+    const s = new THREE.Shape(), x = -W / 2, y = -D / 2, w = W, h = D, r = RAD;
+    s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+    s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h); s.lineTo(x + r, y + h);
+    s.quadraticCurveTo(x, y + h, x, y + h - r); s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+    const hole = new THREE.Path(); hole.absarc(0, -HOLE_Z, HOLE_R, 0, Math.PI * 2, true);
+    s.holes.push(hole);
+    return s;
+  }
+  const slabGeo = new THREE.ExtrudeGeometry(slabShape(), {
+    depth: TH - 0.08, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 4, curveSegments: 20,
+  });
+  slabGeo.rotateX(-Math.PI / 2); slabGeo.translate(0, 0.04, 0);
+  function outlinePts(yy, inset) {
+    const pts = [], x0 = -W / 2 - inset, x1 = W / 2 + inset, z0 = -D / 2 - inset, z1 = D / 2 + inset, r = RAD + inset, n = 10;
+    const arc = (cx, cz, a0) => { for (let i = 0; i <= n; i++) { const a = a0 + (i / n) * Math.PI / 2; pts.push(new THREE.Vector3(cx + r * Math.cos(a), yy, cz + r * Math.sin(a))); } };
+    arc(x1 - r, z1 - r, 0); arc(x0 + r, z1 - r, Math.PI / 2); arc(x0 + r, z0 + r, Math.PI); arc(x1 - r, z0 + r, Math.PI * 1.5);
+    return pts;
+  }
+  const topLineGeo = new THREE.BufferGeometry().setFromPoints(outlinePts(TH + 0.002, 0.035));
+  const botLineGeo = new THREE.BufferGeometry().setFromPoints(outlinePts(0.0, 0.035));
+
+  function badgeTex(i) {
+    return canvasTex(128, 128, (g, w) => {
+      g.fillStyle = BADGE[i]; g.beginPath(); g.arc(w / 2, w / 2, w / 2 - 2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = BADGE[i] === "#fbbc05" ? "#1f2430" : "#ffffff";
+      g.font = "700 76px 'Atkinson Hyperlegible', sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(String(i + 1), w / 2, w / 2 + 4);
+    });
+  }
+
+  const slabs = [];
+  for (let k = 0; k < 6; k++) {
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x15171d, transparent: true, opacity: 0 });
+    const mesh = new THREE.Mesh(slabGeo, mat); mesh.castShadow = true; grp.add(mesh);
+    const topL = new THREE.LineLoop(topLineGeo, new THREE.LineBasicMaterial({ color: EDGE.clone(), transparent: true, opacity: 0 }));
+    const botL = new THREE.LineLoop(botLineGeo, new THREE.LineBasicMaterial({ color: EDGE.clone(), transparent: true, opacity: 0 }));
+    grp.add(topL, botL);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(HOLE_R + 0.01, HOLE_R + 0.13, 48),
+      new THREE.MeshBasicMaterial({ color: RING.clone(), transparent: true, opacity: 0, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(0, TH + 0.004, HOLE_Z); grp.add(ring);
+    const badge = new THREE.Mesh(new THREE.CircleGeometry(0.3, 40),
+      new THREE.MeshBasicMaterial({ map: badgeTex(k), transparent: true, opacity: 0, depthWrite: false }));
+    badge.rotation.x = -Math.PI / 2; badge.position.set(-W / 2 + 0.68, TH + 0.005, D / 2 - 0.62); grp.add(badge);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(W + 2 * GM, D + 2 * GM),
+      new THREE.MeshBasicMaterial({ map: glowTex, color: ACC.clone(), transparent: true, opacity: 0, depthWrite: false }));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = TH + 0.006; glow.renderOrder = 2; grp.add(glow);
+    grp.visible = false;
+    scene.add(grp);
+    slabs.push({ grp, mesh, mat, topL, botL, ring, badge, glow });
+  }
+
+  // dashed shaft through the ports
+  const shafts = [];
+  for (let k = 0; k < 5; k++) {
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, HOLE_Z), new THREE.Vector3(0, 1, HOLE_Z)]);
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xa9bfe8, dashSize: 0.12, gapSize: 0.1, transparent: true, opacity: 0 }));
+    l.computeLineDistances(); scene.add(l); shafts.push(l);
+  }
+
+  // packets (pool)
+  const sphereGeo = new THREE.SphereGeometry(0.15, 28, 18);
+  const pool = [];
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: ACC.clone(), transparent: true }));
+    const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: ACC.clone(), transparent: true, depthWrite: false }));
+    h.scale.set(1.0, 1.0, 1);
+    m.visible = h.visible = false; m.renderOrder = 3; h.renderOrder = 4;
+    scene.add(m); scene.add(h); pool.push({ m, h });
+  }
+
+  // ---------------------------------------------------------------- timeline helpers (pure functions of t)
+  function slabRise(k, t) { return prog(t, CUE_L[k], 1.2); }
+  function slabAlpha(k, t) { return prog(t, CUE_L[k], 0.7); }
+  function slabY(k, t) { return baseY(k) - 0.9 * (1 - slabRise(k, t)); }
+  function placedAt(time) { let n = 0; for (let k = 0; k < 6; k++) if (time >= CUE_L[k] + 0.55) n = k + 1; return n; }
+
+  const PAUSE = 0.3, HOP = 0.42, SPAWN = 1.3;
+  const DANGER_HOLD0 = C.danger - 2.4, DANGER_HOLD1 = C.danger + 2.6;
+  const DP = { appear: 0.22, hop: 0.3, pause: 0.1 }; // danger packet pacing
+  const T_IMPACT = C.danger + DP.appear + 3 * (DP.hop + DP.pause) + DP.pause + 0.34;
+  window.__impact = T_IMPACT;
+
+  function stopY(k, t) { return slabY(k, t) + TH + 0.24; }
+
+  function blueSpawns() {
+    const out = [];
+    for (let s = C.l2 + 0.7; s < DUR + 1; s += SPAWN) {
+      if (s > DANGER_HOLD0 && s < DANGER_HOLD1) continue;
+      const n = placedAt(s);
+      if (n >= 2) out.push({ s, n });
+    }
+    return out;
+  }
+  const SPAWNS = blueSpawns();
+
+  // returns {y, scale, alpha, arrivals: [time per stop]} or null
+  function bluePacket(sp, t) {
+    const { s, n } = sp;
+    const life = 0.22 + (n - 1) * (PAUSE + HOP) + PAUSE + 0.4;
+    if (t < s || t > s + life) return null;
+    const arr = []; for (let j = 0; j < n; j++) arr.push(s + 0.22 + j * (PAUSE + HOP));
+    let y, sc = 1, a = 1;
+    if (t < arr[0]) { y = stopY(0, t); sc = prog(t, s, 0.22); }
+    else {
+      let j = 0; while (j < n - 1 && t >= arr[j] + PAUSE + HOP) j++;
+      const leave = arr[j] + PAUSE;
+      if (j < n - 1 && t > leave) y = lerp(stopY(j, t), stopY(j + 1, t), ease((t - leave) / HOP));
+      else y = stopY(j, t);
+      const last = arr[n - 1] + PAUSE;
+      if (t > last) { const p = prog(t, last, 0.4); y += 0.5 * p; a = 1 - p; sc = 1 - 0.4 * p; }
+    }
+    if (s < C.danger) a *= 1 - prog(t, C.danger - 0.3, 0.5); // clear the stage for the refused packet
+    return { y, sc, a, arr };
+  }
+
+  function dangerPacket(t) {
+    const s = C.danger;
+    if (t < s) return null;
+    let y, sc = 1, a = 1;
+    const arr = []; for (let j = 0; j < 4; j++) arr.push(s + DP.appear + j * (DP.hop + DP.pause));
+    const leave3 = arr[3] + DP.pause;
+    const yHit = slabY(4, t) - 0.26;
+    if (t < arr[0]) { y = stopY(0, t); sc = prog(t, s, DP.appear); }
+    else if (t < leave3) {
+      let j = 0; while (j < 3 && t >= arr[j] + DP.pause + DP.hop) j++;
+      const lv = arr[j] + DP.pause;
+      y = (j < 3 && t > lv) ? lerp(stopY(j, t), stopY(j + 1, t), ease((t - lv) / DP.hop)) : stopY(j, t);
+    } else if (t < T_IMPACT) {
+      const p = (t - leave3) / (T_IMPACT - leave3);
+      y = lerp(stopY(3, t), yHit, p * p);            // accelerates into the slab
+    } else {
+      const dt = t - T_IMPACT;
+      y = yHit - 0.14 * (1 - Math.exp(-dt * 7)) - 0.06 * Math.exp(-dt * 3) * Math.sin(dt * 18);
+      sc = 1 + 0.35 * Math.exp(-dt * 6);
+    }
+    if (t > C.result) { const p = prog(t, C.result, 0.7); a = 1 - p; }
+    return { y, sc, a, arr };
+  }
+
+  // focus (which label / slab is "current")
+  const FOCUS = [];
+  LAYERS.forEach((l, i) => FOCUS.push({ t: CUE_L[i], i }));
+  FOCUS.push({ t: C.danger, i: 4 }, { t: C.result, i: 5 });
+  FOCUS.sort((a, b) => a.t - b.t);
+  function focusW(i, t) {
+    let k = -1; for (let j = 0; j < FOCUS.length; j++) if (FOCUS[j].t <= t) k = j;
+    if (k < 0) return 0;
+    const cur = FOCUS[k].i === i ? 1 : 0, prev = k > 0 ? (FOCUS[k - 1].i === i ? 1 : 0) : cur;
+    return lerp(prev, cur, prog(t, FOCUS[k].t, 0.4));
+  }
+
+  // ---------------------------------------------------------------- camera (slow ~20° orbit + gentle dolly)
+  const R0 = 31, ELEV = 21 * Math.PI / 180;
+  function setCamera(t) {
+    const p = clamp(t / DUR, 0, 1);
+    const az = (-10 + 20 * p) * Math.PI / 180;
+    const R = R0 * (1 - 0.075 * p);
+    camera.position.set(TARGET.x + R * Math.cos(ELEV) * Math.sin(az), TARGET.y + R * Math.sin(ELEV), TARGET.z + R * Math.cos(ELEV) * Math.cos(az));
+    camera.lookAt(TARGET);
+    camera.setViewOffset(1920, 1080, 112, -6, 1920, 1080);
+    camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+  }
+  const V = new THREE.Vector3();
+  function proj(x, y, z) { V.set(x, y, z).project(camera); return { x: (V.x + 1) * 960, y: (1 - V.y) * 540 }; }
+
+  // ---------------------------------------------------------------- overlay DOM
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const ov = document.getElementById("ov");
+  function svgEl(tag, attrs, parent) { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || ov).appendChild(e); return e; }
+  const gTraces = svgEl("g", {}), gLeaders = svgEl("g", {}), gDanger = svgEl("g", {}), gChip = svgEl("g", {});
+
+  const labelsEl = document.getElementById("labels");
+  const labels = LAYERS.map((L, i) => {
+    const d = document.createElement("div"); d.className = "label abs";
+    d.innerHTML = `<div class="badge${BADGE[i] === "#fbbc05" ? " y" : ""}" style="background:${BADGE[i]}">${i + 1}</div>` +
+      `<div class="ltxt"><div class="ttl">${L.title}</div><div class="sub">${L.sub}</div></div>`;
+    labelsEl.appendChild(d);
+    const path = svgEl("path", { fill: "none", "stroke-width": 2.25, "stroke-linecap": "round", pathLength: 1, "stroke-dasharray": "1 1" }, gLeaders);
+    const dot = svgEl("circle", { r: 5 }, gLeaders);
+    return { el: d, path, dot, x: 0, y: 0 };
+  });
+  const satsEl = document.getElementById("sats");
+  const sats = SATS.map((S) => {
+    const d = document.createElement("div"); d.className = "sat abs";
+    d.innerHTML = `<i style="background:${S.color}"></i><span>${S.text}</span>`;
+    satsEl.appendChild(d);
+    const path = svgEl("path", { fill: "none", "stroke-width": 2.5, "stroke-linecap": "round", pathLength: 1, "stroke-dasharray": "1 1" }, gTraces);
+    const end = svgEl("circle", { r: 5.5 }, gTraces);
+    const flow = [0, 1].map(() => svgEl("circle", { r: 5, fill: "#4285f4" }, gTraces));
+    return { el: d, path, end, flow, x: 0, y: 0, w: 0, h: 0 };
+  });
+  const tagEl = document.getElementById("tag"), refEl = document.getElementById("refuse");
+  const chipEl = document.getElementById("chip"), ringEl = document.getElementById("chipRing");
+  const chapEl = document.getElementById("chapter");
+  const tagLine = svgEl("path", { fill: "none", stroke: "#ea4335", "stroke-width": 2.25, "stroke-dasharray": "1 1", pathLength: 1, "stroke-linecap": "round" }, gDanger);
+  const chipLine = svgEl("path", { fill: "none", stroke: "#34a853", "stroke-width": 2.5, "stroke-dasharray": "1 1", pathLength: 1, "stroke-linecap": "round" }, gChip);
+
+  const SAFE = { l: 96, r: 1824, t: 54, b: 907 };
+  let LAY = null; // fixed layout computed once
+  function computeLayout() {
+    // label rows: align with slab anchors at the timeline midpoint, then enforce spacing
+    setCamera(DUR * 0.62);
+    const ys = []; let maxX = 0;
+    for (let k = 0; k < 6; k++) {
+      const a = proj(W / 2, baseY(k) + TH / 2, 0); ys.push(a.y);
+    }
+    setCamera(DUR);
+    for (let k = 0; k < 6; k++) maxX = Math.max(maxX, proj(W / 2, baseY(k) + TH / 2, D / 2).x);
+    const lx = Math.round(maxX + 92);
+    const hs = labels.map((L) => L.el.offsetHeight);
+    // enforce spacing from bottom (k=0) upwards
+    const ty = ys.slice();
+    for (let k = 1; k < 6; k++) {
+      const need = hs[k] + 20; // block of k sits above block k-1
+      // title center y; block top = y - 24
+      if (ty[k - 1] - 24 - (ty[k] - 24) < need) ty[k] = ty[k - 1] - need;
+    }
+    // keep bottom block above the caption zone
+    const over = (ty[0] - 24 + hs[0]) - (SAFE.b - 6);
+    if (over > 0) for (let k = 0; k < 6; k++) ty[k] -= over;
+    labels.forEach((L, k) => { L.x = lx; L.y = Math.round(ty[k]); });
+
+    // satellites: left column, vertically at their layer
+    setCamera(DUR * 0.75);
+    sats.forEach((S) => { S.w = S.el.offsetWidth; S.h = S.el.offsetHeight; });
+    const sy = SATS.map((S) => proj(-W / 2, baseY(S.layer) + TH / 2, 0).y);
+    for (let i = 1; i < 3; i++) if (sy[i] - sy[i - 1] < sats[i - 1].h + 22) sy[i] = sy[i - 1] + sats[i - 1].h + 22;
+    sats.forEach((S, i) => { S.x = SAFE.l; S.y = Math.round(sy[i]); });
+
+    // danger: tag on the left at the Tools layer, refusal card above it
+    setCamera(C.danger + 2);
+    const y5 = proj(-W / 2, baseY(4), 0).y;
+    const tagH = tagEl.offsetHeight, refH = refEl.offsetHeight;
+    let tagY = Math.round(y5 - tagH / 2 + 10);
+    const satTop = sats[0].y - sats[0].h / 2;
+    if (tagY + tagH > satTop - 18) tagY = Math.round(satTop - 18 - tagH);
+    LAY = {
+      tag: { x: SAFE.l, y: tagY, w: tagEl.offsetWidth, h: tagH },
+      ref: { x: SAFE.l, y: tagY - 16 - refH, w: refEl.offsetWidth, h: refH },
+    };
+    // result chip: centred over the top slab
+    setCamera(C.result + 1);
+    const top = proj(0, baseY(5) + TH, -D / 2);
+    const cw = chipEl.offsetWidth, ch = chipEl.offsetHeight;
+    LAY.chip = { x: Math.round(top.x - cw / 2), y: Math.round(Math.max(SAFE.t + 70, top.y - 70 - ch)), w: cw, h: ch };
+    LAY.chap = { x: SAFE.l, y: SAFE.t };
+  }
+
+  function place(el, x, y, op, extraTransform) {
+    el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)${extraTransform || ""}`;
+    el.style.opacity = op.toFixed(3);
+    el.style.visibility = op <= 0.001 ? "hidden" : "visible";
+  }
+  function mixHex(a, b, p) { const c = new THREE.Color(a).lerp(new THREE.Color(b), clamp(p, 0, 1)); return "#" + c.getHexString(); }
+
+  // ---------------------------------------------------------------- frame
+  function render(t) {
+    setCamera(t);
+
+    // ---- slabs
+    const pulse = [0, 0, 0, 0, 0, 0];
+    const active = [];
+    for (const sp of SPAWNS) { const p = bluePacket(sp, t); if (p) { active.push({ p, color: ACC }); p.arr.forEach((a, j) => { pulse[j] = Math.max(pulse[j], Math.exp(-Math.pow((t - a - 0.12) / 0.2, 2))); }); } }
+    const dp = dangerPacket(t);
+    if (dp) { active.push({ p: dp, color: RED, danger: true }); dp.arr.forEach((a, j) => { pulse[j] = Math.max(pulse[j], 0.8 * Math.exp(-Math.pow((t - a - 0.08) / 0.16, 2))); }); }
+
+    const redW = t >= T_IMPACT ? (0.95 * Math.exp(-(t - T_IMPACT) * 2.4) + 0.35) * (1 - prog(t, C.result, 0.8)) : 0;
+    const grnW = t >= C.result ? prog(t, C.result, 0.8) * (0.62 + 0.18 * Math.sin((t - C.result) * Math.PI * 2 / 1.8)) : 0;
+
+    for (let k = 0; k < 6; k++) {
+      const S = slabs[k], a = slabAlpha(k, t);
+      S.grp.visible = a > 0.001;
+      if (!S.grp.visible) continue;
+      let xo = 0;
+      if (k === 4 && t >= T_IMPACT) { const dt = t - T_IMPACT; xo = 0.13 * Math.exp(-dt * 5) * Math.sin(dt * 42); }
+      S.grp.position.set(xo, slabY(k, t), 0);
+      S.mat.opacity = a; S.mat.transparent = a < 0.999; S.mat.depthWrite = a > 0.5;
+      S.mesh.castShadow = a > 0.3;
+      const fw = focusW(k, t);
+      const edgeCol = EDGE.clone().lerp(ACC, 0.55 * fw);
+      S.topL.material.color.copy(edgeCol); S.topL.material.opacity = a;
+      S.botL.material.color.copy(EDGE); S.botL.material.opacity = a * 0.9;
+      S.badge.material.opacity = a;
+      // ring: grey -> accent on packet pulse; red on the Tools slab after the refused hit
+      const rc = RING.clone().lerp(ACC, clamp(pulse[k] + 0.35 * fw, 0, 1));
+      if (k === 4 && redW > 0) rc.lerp(RED, clamp(redW * 1.4, 0, 1));
+      if (k === 5 && grnW > 0) rc.lerp(GRN, clamp(grnW * 1.3, 0, 1));
+      S.ring.material.color.copy(rc); S.ring.material.opacity = a;
+      // glow
+      let gc = ACC, go = (0.42 * fw + 0.35 * pulse[k]) * a;
+      if (k === 4 && redW > 0.02) { gc = RED; go = Math.max(go * 0.3, redW * 0.85); }
+      if (k === 5 && grnW > 0.02) { gc = GRN; go = Math.max(go * 0.3, grnW); }
+      S.glow.material.color.copy(gc); S.glow.material.opacity = clamp(go, 0, 1);
+    }
+    contact.material.opacity = slabAlpha(0, t);
+    for (let k = 0; k < 5; k++) {
+      const a = Math.min(slabAlpha(k, t), slabAlpha(k + 1, t));
+      const L = shafts[k]; L.visible = a > 0.01;
+      const y0 = slabY(k, t) + TH, y1 = slabY(k + 1, t);
+      L.position.set(0, y0, 0); L.scale.set(1, Math.max(0.01, y1 - y0), 1);
+      L.material.opacity = 0.9 * a; L.material.scale = Math.max(0.01, y1 - y0);
+    }
+
+    // ---- packets
+    pool.forEach((P) => { P.m.visible = P.h.visible = false; });
+    active.forEach((A, i) => {
+      if (i >= pool.length) return;
+      const P = pool[i], p = A.p;
+      P.m.visible = P.h.visible = p.a > 0.001;
+      P.m.position.set(0, p.y, HOLE_Z); P.h.position.copy(P.m.position);
+      P.m.material.color.copy(A.color); P.h.material.color.copy(A.color);
+      P.m.material.opacity = p.a; P.m.scale.setScalar(Math.max(0.001, p.sc));
+      let hs = 1.15 * p.sc, ho = 0.6 * p.a;
+      if (A.danger && t >= T_IMPACT) { const dt = t - T_IMPACT; hs = 1.3 + 1.6 * Math.exp(-dt * 3) + 0.15 * Math.sin(dt * 7); ho = (0.55 + 0.35 * Math.exp(-dt * 3)) * p.a; }
+      P.h.material.depthTest = !A.danger;
+      P.h.scale.set(hs, hs, 1); P.h.material.opacity = ho;
+    });
+
+    renderer.render(scene, camera);
+
+    // ---- overlay
+    if (!LAY) return;
+    place(chapEl, LAY.chap.x, LAY.chap.y, 1);
+
+    labels.forEach((L, k) => {
+      const c = CUE_L[k];
+      const anc = proj(W / 2, slabY(k, t) + TH / 2, 0);
+      const ax = anc.x + 14, ay = anc.y;
+      const ex = L.x - 12, ey = L.y;
+      const mx = ex - 46;
+      L.path.setAttribute("d", `M${ax.toFixed(1)} ${ay.toFixed(1)} L${mx.toFixed(1)} ${ey.toFixed(1)} L${ex.toFixed(1)} ${ey.toFixed(1)}`);
+      const draw = lin(t, c + 0.35, 0.3);
+      L.path.setAttribute("stroke-dashoffset", (1 - ease(draw)).toFixed(4));
+      const fw = focusW(k, t);
+      const dim = lerp(0.45, 1, fw);
+      const col = mixHex("#aab2c2", "#4285f4", fw);
+      L.path.setAttribute("stroke", col);
+      L.path.style.opacity = draw > 0 ? lerp(0.7, 1, fw) : 0;
+      L.dot.setAttribute("cx", ax.toFixed(1)); L.dot.setAttribute("cy", ay.toFixed(1));
+      L.dot.setAttribute("fill", col); L.dot.style.opacity = prog(t, c + 0.3, 0.2) * lerp(0.7, 1, fw);
+      const e = prog(t, c + 0.55, 0.7);
+      place(L.el, L.x, L.y - 24 + 12 * (1 - e), e * dim);
+    });
+
+    // satellites + traces
+    sats.forEach((S, i) => {
+      const t0 = C.sat + i * 0.18;
+      const e = prog(t, t0, 0.7);
+      place(S.el, S.x, S.y - S.h / 2 + 12 * (1 - e), e);
+      const L = SATS[i].layer;
+      const a = proj(-W / 2, slabY(L, t) + TH / 2, 0);
+      const sx = S.x + S.w + 6, sy = S.y, ax = a.x - 12, ay = a.y;
+      const d = `M${sx.toFixed(1)} ${sy.toFixed(1)} C${(sx + 70).toFixed(1)} ${sy.toFixed(1)} ${(ax - 70).toFixed(1)} ${ay.toFixed(1)} ${ax.toFixed(1)} ${ay.toFixed(1)}`;
+      S.path.setAttribute("d", d);
+      const draw = lin(t, t0 + 0.15, 0.3);
+      S.path.setAttribute("stroke-dashoffset", (1 - ease(draw)).toFixed(4));
+      const lit = Math.exp(-Math.max(0, t - (t0 + 0.45)) * 1.4) * (t >= t0 ? 1 : 0);
+      const col = mixHex("#b9cdf3", "#4285f4", lit);
+      S.path.setAttribute("stroke", col); S.path.setAttribute("stroke-width", (2.5 + 1.5 * lit).toFixed(2));
+      S.path.style.opacity = draw > 0 ? 1 : 0;
+      S.end.setAttribute("cx", ax.toFixed(1)); S.end.setAttribute("cy", ay.toFixed(1)); S.end.setAttribute("fill", col);
+      S.end.style.opacity = draw >= 1 ? 1 : 0;
+      // small flow dots along each trace (pure function of t)
+      const len = draw >= 1 ? S.path.getTotalLength() : 0;
+      S.flow.forEach((f, j) => {
+        if (!len) { f.style.opacity = 0; return; }
+        const ph = ((t - t0 - 0.5) / 1.6 + j * 0.5) % 1;
+        const q = j % 2 ? ph : 1 - ph; // one dot each way
+        const pt = S.path.getPointAtLength(q * len);
+        f.setAttribute("cx", pt.x.toFixed(1)); f.setAttribute("cy", pt.y.toFixed(1));
+        f.style.opacity = (Math.sin(Math.PI * ph) * prog(t, t0 + 0.5, 0.5)).toFixed(3);
+      });
+    });
+
+    // danger
+    const dIn = prog(t, C.danger, 0.6);
+    const dDim = lerp(1, 0.45, prog(t, C.result, 0.5));
+    place(tagEl, LAY.tag.x, LAY.tag.y + 12 * (1 - dIn), dIn * dDim);
+    if (dp && dp.a > 0.001) {
+      const pp = proj(0, dp.y, HOLE_Z);
+      const sx = LAY.tag.x + LAY.tag.w + 8, sy = LAY.tag.y + LAY.tag.h / 2;
+      tagLine.setAttribute("d", `M${sx.toFixed(1)} ${sy.toFixed(1)} L${(pp.x - 22).toFixed(1)} ${pp.y.toFixed(1)}`);
+      tagLine.setAttribute("stroke-dashoffset", (1 - prog(t, C.danger + 0.15, 0.3)).toFixed(4));
+      tagLine.style.opacity = (dp.a * dDim).toFixed(3);
+    } else tagLine.style.opacity = 0;
+    const rIn = prog(t, T_IMPACT + 0.05, 0.7);
+    place(refEl, LAY.ref.x, LAY.ref.y + 12 * (1 - rIn), rIn * dDim);
+
+    // result chip
+    const cIn = prog(t, C.result + 0.15, 0.8);
+    place(chipEl, LAY.chip.x, LAY.chip.y + 12 * (1 - cIn), cIn);
+    const rp = t > C.result + 0.5 ? ((t - C.result - 0.5) % 1.8) / 1.8 : -1;
+    if (rp >= 0) {
+      const s = 1 + 0.12 * ease(rp);
+      ringEl.style.width = LAY.chip.w + "px"; ringEl.style.height = LAY.chip.h + "px";
+      place(ringEl, LAY.chip.x, LAY.chip.y, 0.55 * (1 - rp) * cIn, ` scale(${s.toFixed(4)})`);
+    } else place(ringEl, LAY.chip.x, LAY.chip.y, 0);
+    if (t >= C.result) {
+      const top = proj(0, slabY(5, t) + TH + 0.02, HOLE_Z);
+      const cx = LAY.chip.x + LAY.chip.w / 2, cy = LAY.chip.y + LAY.chip.h + 4;
+      chipLine.setAttribute("d", `M${top.x.toFixed(1)} ${top.y.toFixed(1)} L${cx.toFixed(1)} ${cy.toFixed(1)}`);
+      chipLine.setAttribute("stroke-dashoffset", (1 - prog(t, C.result, 0.35)).toFixed(4));
+      chipLine.style.opacity = 1;
+    } else chipLine.style.opacity = 0;
+  }
+
+  // ---------------------------------------------------------------- clock + boot
+  let startAt = null;
+  function now() {
+    if (FROZEN !== null) return FROZEN;
+    if (startAt === null) return 0;
+    return (performance.now() - startAt) / 1000;
+  }
+  window.__start = function () { if (startAt === null) startAt = performance.now(); };
+  window.__render = function (t) { render(Math.max(0, Number(t) || 0)); }; // optional manual seek
+  window.__t = now;
+
+  function fit() {
+    const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    const st = document.getElementById("stage");
+    st.style.transform = `translate(${((window.innerWidth - 1920 * s) / 2).toFixed(1)}px, ${((window.innerHeight - 1080 * s) / 2).toFixed(1)}px) scale(${s})`;
+  }
+  window.addEventListener("resize", fit);
+
+  function loop() { render(now()); requestAnimationFrame(loop); }
+
+  async function boot() {
+    fit();
+    try {
+      await Promise.race([
+        Promise.all([
+          document.fonts.load('700 38px "Atkinson Hyperlegible"'),
+          document.fonts.load('400 24px "Atkinson Hyperlegible"'),
+          document.fonts.load('500 24px "Roboto Mono"'),
+        ]).then(() => document.fonts.ready),
+        new Promise((r) => setTimeout(r, 6000)),
+      ]);
+    } catch (e) { /* fall back to system fonts */ }
+    // redraw badge textures now that the font is available
+    slabs.forEach((S, k) => { S.badge.material.map = badgeTex(k); S.badge.material.needsUpdate = true; });
+    computeLayout();
+    render(now());
+    requestAnimationFrame(() => { render(now()); window.__ready = true; requestAnimationFrame(loop); });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
