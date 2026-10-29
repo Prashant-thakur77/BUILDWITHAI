@@ -1,0 +1,291 @@
+1
+00:00:01,000 --> 00:00:02,280
+It’s the last night of a Goa
+
+2
+00:00:02,280 --> 00:00:03,740
+trip. Four friends,
+
+3
+00:00:03,740 --> 00:00:04,460
+one group chat,
+
+4
+00:00:04,460 --> 00:00:05,730
+and a pile of bills.
+
+5
+00:00:06,180 --> 00:00:07,380
+Who paid for dinner?
+
+6
+00:00:07,380 --> 00:00:08,780
+Who owes for the cab?
+
+7
+00:00:08,780 --> 00:00:09,960
+Is it 675,
+
+8
+00:00:09,960 --> 00:00:12,010
+or 725?
+
+9
+00:00:12,760 --> 00:00:14,560
+Today’s apps want a form for every
+
+10
+00:00:14,560 --> 00:00:15,480
+single bill.
+
+11
+00:00:15,930 --> 00:00:17,070
+And the worst part:
+
+12
+00:00:17,070 --> 00:00:18,550
+the friend who paid the most is
+
+13
+00:00:18,550 --> 00:00:20,050
+the one who has to ask.
+
+14
+00:00:20,700 --> 00:00:22,320
+This is SettleUp.
+
+15
+00:00:22,320 --> 00:00:23,060
+Say who paid,
+
+16
+00:00:23,060 --> 00:00:24,000
+in plain English.
+
+17
+00:00:24,000 --> 00:00:26,160
+Get the fewest payments that settle everyone.
+
+18
+00:00:27,410 --> 00:00:28,870
+You type the whole trip as one
+
+19
+00:00:28,870 --> 00:00:31,120
+sentence, the way you’d text a friend.
+
+20
+00:00:31,420 --> 00:00:33,440
+Underneath, a Google ADK agent
+
+21
+00:00:33,440 --> 00:00:34,520
+hands it to Claude,
+
+22
+00:00:34,520 --> 00:00:36,310
+which calls one tool per expense.
+
+23
+00:00:37,010 --> 00:00:37,930
+3 expenses,
+
+24
+00:00:37,930 --> 00:00:39,530
+logged. And Claude tells you how
+
+25
+00:00:39,530 --> 00:00:41,260
+it read “everyone”.
+
+26
+00:00:42,010 --> 00:00:43,840
+Then ask who owes whom.
+
+27
+00:00:44,790 --> 00:00:46,030
+Plain code does the maths,
+
+28
+00:00:46,030 --> 00:00:47,190
+to the cent.
+
+29
+00:00:47,190 --> 00:00:49,700
+Three payments settle all 2,700.
+
+30
+00:00:51,550 --> 00:00:53,410
+Every request is measured live:
+
+31
+00:00:53,410 --> 00:00:54,050
+how long it took,
+
+32
+00:00:54,050 --> 00:00:54,670
+the tokens,
+
+33
+00:00:54,670 --> 00:00:56,400
+and every tool it called.
+
+34
+00:00:56,750 --> 00:00:58,670
+That first reply took 7.3 seconds
+
+35
+00:00:58,670 --> 00:01:00,870
+on Claude Opus 5.5.
+
+36
+00:01:00,870 --> 00:01:02,820
+Speed is the next thing to fix.
+
+37
+00:01:04,070 --> 00:01:05,970
+Your sentence reaches a small FastAPI
+
+38
+00:01:05,970 --> 00:01:08,310
+server, which times every request.
+
+39
+00:01:08,610 --> 00:01:09,890
+Google’s Agent Development Kit
+
+40
+00:01:09,890 --> 00:01:10,670
+runs the agent,
+
+41
+00:01:10,670 --> 00:01:12,680
+and keeps the ledger in its session.
+
+42
+00:01:12,980 --> 00:01:14,400
+Claude reads the words and picks
+
+43
+00:01:14,400 --> 00:01:15,260
+the tools.
+
+44
+00:01:15,260 --> 00:01:16,900
+It never does the arithmetic.
+
+45
+00:01:17,200 --> 00:01:18,100
+A bad amount,
+
+46
+00:01:18,100 --> 00:01:19,160
+like minus 500,
+
+47
+00:01:19,160 --> 00:01:20,940
+is refused by the tool.
+
+48
+00:01:20,940 --> 00:01:22,060
+Nothing is recorded.
+
+49
+00:01:22,360 --> 00:01:23,940
+Only then does the ledger do the
+
+50
+00:01:23,940 --> 00:01:25,560
+maths, in exact cents,
+
+51
+00:01:25,560 --> 00:01:27,140
+and find the fewest payments.
+
+52
+00:01:29,490 --> 00:01:31,390
+4 of 4 tests pass,
+
+53
+00:01:31,390 --> 00:01:32,870
+including the full chat loop on
+
+54
+00:01:32,870 --> 00:01:33,830
+the live model.
+
+55
+00:01:34,230 --> 00:01:35,170
+Four people,
+
+56
+00:01:35,170 --> 00:01:36,390
+three payments.
+
+57
+00:01:36,390 --> 00:01:37,910
+A group never needs more than one
+
+58
+00:01:37,910 --> 00:01:39,740
+fewer payment than it has people.
+
+59
+00:01:42,390 --> 00:01:43,410
+One sentence in.
+
+60
+00:01:43,410 --> 00:01:45,000
+Every expense logged.
+
+61
+00:01:45,300 --> 00:01:46,840
+Claude picks the tools.
+
+62
+00:01:46,840 --> 00:01:48,230
+Code does the maths.
+
+63
+00:01:48,530 --> 00:01:49,370
+Fewest payments,
+
+64
+00:01:49,370 --> 00:01:50,560
+exact to the cent.
+
+65
+00:01:50,860 --> 00:01:52,720
+Every request measured, live.
+
+66
+00:01:53,020 --> 00:01:53,880
+Three payments.
+
+67
+00:01:53,880 --> 00:01:55,170
+Everyone settled.
+
+68
+00:01:56,020 --> 00:01:56,860
+Same night.
+
+69
+00:01:56,860 --> 00:01:57,720
+One sentence,
+
+70
+00:01:57,720 --> 00:01:58,440
+three payments,
+
+71
+00:01:58,440 --> 00:01:59,950
+and nobody has to ask.
+
+72
+00:02:00,500 --> 00:02:02,680
+SettleUp. Built with Claude and
+
+73
+00:02:02,680 --> 00:02:04,500
+Google’s Agent Development Kit.
